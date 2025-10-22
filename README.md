@@ -14,7 +14,11 @@ A dataset YAML configured for cyclist detection using COCO-style class names
 Examples to evaluate only the person and bicycle classes (the two most relevant COCO classes for cyclist scenes)
 
 .
+
 ├── YOLO.py                         # Quick validation across YOLO variants (classes=[0,1])
+
 ├── cyclist-detection.train.py      # Fine-tune on cyclist dataset
+
 ├── cyclist-detection.val.py        # Validate on cyclist dataset
+
 └── cyclist-detection-dataset.yaml  # Dataset config (paths, class names)
