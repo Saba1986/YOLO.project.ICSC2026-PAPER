@@ -1,0 +1,166 @@
+# Cyclist-Detection-Dataset by Charles Tang
+# Custom dataset fine-tuning only on "bicycle" class (COCO ID = 1), using full COCO class head
+
+path: ../datasets/Cyclist-Detection-Dataset
+
+train:
+  - images/train/
+val:
+  - images/valid/
+test:
+  - images/test/
+
+nc: 80  # keep 80 to match COCO-pretrained model head
+names:
+  - person
+  - bicycle
+  - car
+  - motorcycle
+  - airplane
+  - bus
+  - train
+  - truck
+  - boat
+  - traffic light
+  - fire hydrant
+  - stop sign
+  - parking meter
+  - bench
+  - bird
+  - cat
+  - dog
+  - horse
+  - sheep
+  - cow
+  - elephant
+  - bear
+  - zebra
+  - giraffe
+  - backpack
+  - umbrella
+  - handbag
+  - tie
+  - suitcase
+  - frisbee
+  - skis
+  - snowboard
+  - sports ball
+  - kite
+  - baseball bat
+  - baseball glove
+  - skateboard
+  - surfboard
+  - tennis racket
+  - bottle
+  - wine glass
+  - cup
+  - fork
+  - knife
+  - spoon
+  - bowl
+  - banana
+  - apple
+  - sandwich
+  - orange
+  - broccoli
+  - carrot
+  - hot dog
+  - pizza
+  - donut
+  - cake
+  - chair
+  - couch
+  - potted plant
+  - bed
+  - dining table
+  - toilet
+  - TV
+  - laptop
+  - mouse
+  - remote
+  - keyboard
+  - cell phone
+  - microwave
+  - oven
+  - toaster
+  - sink
+  - refrigerator
+  - book
+  - clock
+  - vase
+  - scissors
+  - teddy bear
+  - hair drier
+  - toothbrush
+
+# Download script/URL (optional) ---------------------------------------------------------------------------------------
+download: |
+  import os
+  import glob
+  import re
+  import shutil
+  import xml.etree.ElementTree as ET
+
+  from tqdm import tqdm
+  from ultralytics.utils.downloads import download
+  from pathlib import Path
+
+  def convert_label(path, new_label_path, id):
+      def convert_box(size, box):
+          dw, dh = 1. / size[0], 1. / size[1]
+          x, y, w, h = (box[0] + box[1]) / 2.0 - 1, (box[2] + box[3]) / 2.0 - 1, box[1] - box[0], box[3] - box[2]
+          return x * dw, y * dh, w * dw, h * dh
+  
+      in_path = os.path.join(path, f"{id}.xml")
+      in_file = open(in_path)
+      out_file = open(new_label_path, 'w')
+      tree = ET.parse(in_file)
+      root = tree.getroot()
+      size = root.find('size')
+      w = int(size.find('width').text)
+      h = int(size.find('height').text)
+  
+      # Force all labels to class ID 1 ("bicycle" in COCO)
+      for obj in root.iter('object'):
+          xmlbox = obj.find('bndbox')
+          bb = convert_box((w, h), [float(xmlbox.find(x).text) for x in ('xmin', 'xmax', 'ymin', 'ymax')])
+          cls_id = 1  # Force all annotations to be "bicycle" (COCO class 1)
+          out_file.write(" ".join(str(a) for a in (cls_id, *bb)) + '\n')
+
+  pattern = r"([0-9]{1,5})_jpg.rf.(\S{32}).jpg"
+  regex = re.compile(pattern)
+  dir = yaml['path']
+  url = 'https://gitlab03.wpi.edu/ctang5/cyclistdetectiondataset/-/archive/main/'
+  urls = [f'{url}cyclistdetectiondataset-main.zip']
+  download_dir = os.path.join(dir, 'download')
+  download(urls, dir=download_dir, curl=True, threads=3, exist_ok=True)
+
+  data_dir = os.path.join(download_dir, 'cyclistdetectiondataset-main')
+
+  start_index = 0
+  for dataset_type in ('train', 'valid', 'test'):
+    dataset_type_dir = os.path.join(data_dir, dataset_type)
+    dataset_labels_glob = glob.glob(f"{dataset_type_dir}/*.xml")
+    dataset_images_glob = glob.glob(f"{dataset_type_dir}/*.jpg")
+
+    new_images_path = os.path.join(dir, 'images', f'{dataset_type}')
+    new_labels_path = os.path.join(dir, 'labels', f'{dataset_type}')
+    os.makedirs(new_images_path, exist_ok=True)
+    os.makedirs(new_labels_path, exist_ok=True)
+
+    for i, train_label in enumerate(dataset_labels_glob):
+      tree = ET.parse(train_label)
+      root = tree.getroot()
+      filename = root.find('filename').text
+      id, ext = os.path.splitext(filename)
+
+      old_image_filename = os.path.join(dataset_type_dir, filename)
+      new_image_filename = os.path.join(new_images_path, f"{start_index + i:05.0f}.jpg")
+
+      old_label_filename = train_label
+      new_label_filename = os.path.join(new_labels_path, f"{start_index + i:05.0f}.txt")
+
+      shutil.copy(old_image_filename, new_image_filename)
+      convert_label(dataset_type_dir, new_label_filename, id)
+
+    start_index += len(dataset_labels_glob)
